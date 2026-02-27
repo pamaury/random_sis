@@ -36,7 +36,11 @@ import time
 myRR = RealField(200)
 
 def rho_Z(s):
-    """Compute rho_s(Z) using Lemma 1. The approximation quality is 7e-6."""
+    """
+    Compute rho_s(Z) using Lemma 1 of [PS25]. The approximation quality is 7e-6.
+
+    [PS25] Discrete gaussian sampling for BKZ-reduced basis, Pouly and Shen, PQCrypto 2025
+    """
     s = myRR(s)
     if s <= 1:
         # Not sure why: if I put the '1' inside myRR then the result is always 0
