@@ -18,19 +18,43 @@ from sage.all import sqrt, log, exp, tanh, coth, e, pi, RR, ZZ, erf
 from estimator.cost import Cost
 from estimator.lwe_parameters import LWEParameters
 from estimator.reduction import delta as deltaf
-from estimator.reduction import RC, ReductionCost
+from estimator.reduction import RC, ReductionCost, ABFKSW20
 from estimator.reduction import cost as cost_bkz
 from estimator.conf import red_cost_model as red_cost_model_default
 from estimator.io import Logging
 from estimator import sis
 from estimator.schemes import Dilithium2_MSIS_WkUnf, Dilithium3_MSIS_WkUnf, Dilithium5_MSIS_WkUnf
 from estimator.schemes import Dilithium2_MSIS_StrUnf, Dilithium3_MSIS_StrUnf, Dilithium5_MSIS_StrUnf
+from fpylll import IntegerMatrix, GSO, LLL, FPLLL, BKZ
 import itertools
 from enum import Enum
 from dataclasses import dataclass
 import tabulate
 import heapq
 import time
+
+# quantum version of [ABFKSW20](https://eprint.iacr.org/2020/707) with quadratic speedup
+class QuantumABFKSW20(ABFKSW20):
+    __name__ = "QuantumABFKSW20"
+    def __call__(self, *args, **kwargs):
+        return sqrt(super().__call__(*args, **kwargs))
+
+# [BCSS23](https://eprint.iacr.org/2022/676.pdf)
+class BCSS23(ReductionCost):
+    __name__ = "ChaLoy21"
+    short_vectors = ReductionCost._short_vectors_sieve
+
+    def __call__(self, beta, d, B=None):
+        """
+
+        See [AC:ChaLoy21]_.
+
+        :param beta: Block size ≥ 2.
+        :param d: Lattice dimension.
+        :param B: Bit-size of entries.
+        """
+
+        return ZZ(2) ** RR(0.2563 * beta)
 
 # Precision of computations.
 myRR = RealField(200)
@@ -50,6 +74,27 @@ def rho_Z(s):
     assert res >= 1, f"wrong res {res} for s={s}"
     return res
 
+def calc_H_beta(beta):
+    return (beta / (2 * pi * e) * (pi * beta) ** (1 / beta)) ** (1 / (2 * (beta - 1)))
+
+def gsa_list(n, red_vol, beta):
+    """
+    Return the list of the norm of the \tilde{b_i} of a typical BKZ-reduced basis in dimension n
+    for a given value of beta and given the volume of the lattice, according to the GSA.
+    The volume in argument is actually the reduce volume, ie vol(L)^{1/n}.
+    """
+    assert beta > 0 and beta <= n
+    H_beta = calc_H_beta(beta)
+    return [myRR(H_beta ** (n-1 - 2*i) * red_vol) for i in range(n)]
+
+def mcmc_complexity_exact(s, list_bi_tilde):
+    """
+    Compute the log2 of the complexity of the MCMC algorithm for a given value of s
+    and the list of the norm of the \tilde{b_i}. In other words, this returns
+    \sum_{x \in list_bi_tilde}\log_2(rho_{x/s}(Z)).
+    """
+    return sum([myRR(log(rho_Z(x / s))) for x in list_bi_tilde])
+
 # This is the "exact" formula for the complexity of T_MCMC(L,s) where:
 # * n is the dimension of the lattice L,
 # * we assume that we have a BKZ-beta reduced basis,
@@ -61,20 +106,7 @@ def mcmc_sampling_complexity_exact(
     red_vol,
     s
 ):
-    res = myRR(0)
-    # The complexity is the product (for i=1,..n) for rho_{|b_i*|/s}(Z)
-    # where b_i* is the i-th GS vector. With the GSA, we have
-    # - |b_i*|=delta_beta^{-2(-1)}*|b_1|
-    # - |b_1|=vol^{1/n}*delta_beta^n
-    delta_beta = deltaf(beta)
-    # print("sampler: n={}, beta={}, red_vol={}, s={}".format(n, beta, red_vol, s))
-    # print("arctic={}".format(exp(mcmc_sampling_complexity_arctic(n, beta, red_vol, s))))
-    for i in range(1, n+1):
-        s_i = (red_vol*delta_beta**(n-1-2*(i-1)) / s)
-        # approximate rho_{s_i}(Z) with a few of the biggest terms
-        res += log(rho_Z(s_i))
-
-    return res
+    return mcmc_complexity_exact(s, gsa_list(n, red_vol, beta))
 
 # Same as mcmc_sampling_complexity_exact() but use an approximate formula
 # from Arctic crypt.
@@ -113,6 +145,97 @@ def mcmc_sampling_complexity_arctic(
     )
 
     return myRR(A+(B+C)/2/log(delta_beta))
+
+# Run the BSS18 simulator on a given basis and return the basis profile
+def run_bsw18(mat, beta, nr_tours):
+    from fpylll.tools.bkz_simulator import simulate_prob, log_simulate_prob
+    #profile = [log(x, 2) / 2 for x in mat.r()]
+    #print(\"input profile\", profile)
+    #profile = log_simulate_prob(profile, beta, max_loops = nr_tours)[0]
+    #print(\"output profile\", profile)
+    #profile = [2.0**(x) for x in profile]
+    #return profile
+    print("start simulation")
+    profile = simulate_prob(mat, BKZ.Param(block_size=beta))[0]
+    print("end simulation")
+    return [sqrt(x) for x in profile]
+
+def randomize_block(gso, min_row, max_row, density=0):
+    """Randomize basis between from ``min_row`` and ``max_row`` (exclusive)
+
+        1. permute rows
+
+        2. apply lower triangular matrix with coefficients in -1,0,1
+
+    :param min_row: start in this row
+    :param max_row: stop at this row (exclusive)
+    :param density: number of non-zero coefficients in lower triangular transformation matrix
+    """
+    if max_row - min_row < 2:
+        return  # there is nothing to do
+
+    # 1. permute rows
+    niter = 4 * (max_row-min_row)  # some guestimate
+    with gso.row_ops(min_row, max_row):
+        for i in range(niter):
+            b = a = randint(min_row, max_row-1)
+            while b == a:
+                b = randint(min_row, max_row-1)
+            gso.move_row(b, a)
+
+    # 2. triangular transformation matrix with coefficients in -1,0,1
+    with gso.row_ops(min_row, max_row):
+        for a in range(min_row, max_row-2):
+            for i in range(density):
+                b = randint(a+1, max_row-1)
+                s = randint(0, 1)
+                gso.row_addmul(a, b, 2*s-1)
+
+def rand_basis(n, mode):
+    """
+    Generate a random q-ary basis, optionally re-rerandomizng the basis to make the
+    Z-shape disappear.
+    """
+    args = {}
+    if "k" in mode:
+        args["k"] = mode["k"]
+    if "q" in mode:
+        args["q"] = mode["q"]
+    print("rand matrix parameters: {}".format(mode))
+    A = IntegerMatrix.random(n, mode["type"], **args)
+    print("done")
+    M = GSO.Mat(A)
+    M.update_gso()
+    # Re-randomize the basis to make the Z-shape disappear.
+    # if mode.get("rerand", False):
+    #     randomize_block(M, 0, n-1, 3)
+    #     M.update_gso()
+    return A
+
+# Run the BSS18 simulator on a random basis and return the basis profile
+def run_bsw18_rand(n, mode, beta, nr_tours):
+    A = rand_basis(n, mode=mode)
+    # High precision is needed when working with high dimension
+    _ = FPLLL.set_precision(100)
+    M = GSO.Mat(A, float_type="mpfr")
+    M.update_gso()
+    return run_bsw18(M, beta, nr_tours)
+
+def mcmc_sampling_complexity_bsw18(n, k, q, beta, s):
+    mode = {
+        "type": "qary",
+        "k": k,
+        "q": q,
+        "rerand": True,
+    }
+    nr_tours = int(n**2 / beta**2 * log(n))
+    profile = run_bsw18_rand(n, mode, beta, nr_tours)
+    return mcmc_complexity_exact(myRR(red_vol/x), bkz_data_list)
+
+class SamplerComplexity(Enum):
+    ARCTIC_GSA = 0 # Use approximation formula based on the GSA
+    MCMC_GSA = 1 # Use the exact formula based on the GSA
+    MCMC_BSW18 = 2 # Use the exact formula together with the BSW18 simulator on a random basis
 
 INFINITY_NORM = 0
 
@@ -165,15 +288,22 @@ class Result:
 # - s: width of the Gaussian sampler
 # - beta: block size for BKZ to apply to the basis for use by the Gaussian sampler
 # - ell: maximum length of the vector to be found
-# - use_exact_mcmc: if True, use the exact MCMC sampler complexity.
+# - sampler_compl: if True, use the exact MCMC sampler complexity.
 # - bkz_cost: cost of BKZ reducing the basis
 # - quantum:
 # Returns:
 # - a Result or None in case of error/invalid parameters.
-def estimate_sis_cost(n, k, q, p, ell, s, beta, use_exact_mcmc, bkz_cost, quantum):
+def estimate_sis_cost(n, k, q, p, ell, s, beta, sampler_compl, bkz_cost, quantum):
+    red_vol = q**(1-k/n)
     # Compute cost of producing one Gaussian sample with a BKZ reduction basis.
-    compl_fn = mcmc_sampling_complexity_exact if use_exact_mcmc else mcmc_sampling_complexity_arctic
-    sampling_complexity = exp(compl_fn(n, beta, q**(1-k/n), s))
+    if sampler_compl == SamplerComplexity.ARCTIC_GSA:
+        sampling_complexity = exp(mcmc_sampling_complexity_arctic(n, beta, red_vol, s))
+    elif sampler_compl == SamplerComplexity.MCMC_GSA:
+        sampling_complexity = exp(mcmc_sampling_complexity_exact(n, beta, red_vol, s))
+    elif sampler_compl == SamplerComplexity.MCMC_BSW18:
+        sampling_complexity = exp(mcmc_sampling_complexity_bsw18(n, k, q, beta, s))
+    else:
+        raise Exception(f"unknown sampler complexity type {sampler_compl}")
 
     # NOTE: numbers quickly become huge so we need to be careful to manipulate
     # them in log form when possible
@@ -206,7 +336,7 @@ def estimate_sis_cost(n, k, q, p, ell, s, beta, use_exact_mcmc, bkz_cost, quantu
         bkz_cost,
         sampling_complexity,
         2**log2_N,
-        bkz_shortest_vector(n, q**(1-k/n), beta)
+        bkz_shortest_vector(n, red_vol, beta)
     )
 
 # Optimize the choice the parameters to solve SIS.
@@ -244,7 +374,7 @@ def opt_sis(n, k, q, p, ell, max_failure_frac, red_cost_model, quantum):
         bkz_cost = cost_bkz(red_cost_model, beta, n)
 
         for s in values_s:
-            this_cost = estimate_sis_cost(n, k, q, p, ell, s, beta, False, bkz_cost, quantum)
+            this_cost = estimate_sis_cost(n, k, q, p, ell, s, beta, SamplerComplexity.ARCTIC_GSA, bkz_cost, quantum)
             if this_cost.frac_failure > max_failure_frac:
                 continue
             if this_cost is not None:
@@ -264,7 +394,7 @@ def opt_sis(n, k, q, p, ell, max_failure_frac, red_cost_model, quantum):
             # Compute cost of running BKZ.
             bkz_cost = cost_bkz(red_cost_model, beta, n)
             for s in range(candidate.s - s_step//2, candidate.s + s_step//2, mini_s_step):
-                this_cost = estimate_sis_cost(n, k, q, p, ell, s, beta, False, bkz_cost, quantum)
+                this_cost = estimate_sis_cost(n, k, q, p, ell, s, beta, SamplerComplexity.ARCTIC_GSA, bkz_cost, quantum)
                 if this_cost.frac_failure > max_failure_frac:
                     continue
                 if this_cost > best_cost:
@@ -298,11 +428,12 @@ DILITHIUM_SIS_PARAM = [
     },
 ]
 
-def runall(use_new_opt = True, quantum = False):
-    if quantum:
-        red_cost_model = RC.ChaLoy21.__class__()
-    else:
-        red_cost_model = RC.MATZOV.__class__(nn='list_decoding-classical')
+def runall(use_new_opt = True, quantum = False, red_cost_model=None):
+    if not red_cost_model:
+        if quantum:
+            red_cost_model = BCSS23()
+        else:
+            red_cost_model = RC.MATZOV.__class__(nn='list_decoding-classical')
     results = []
     for params in DILITHIUM_SIS_PARAM:
         print("{}:".format(params["level"]))
@@ -325,24 +456,53 @@ def runall(use_new_opt = True, quantum = False):
 # Same order as in DILITHIUM_SIS_PARAM.
 EUROCRYPTO_PARAMS = [
     # NIST Level 2
-    { "beta": 609, "s": 346702, "quantum": False },
+    { "beta": 609, "s": 346702, "quantum": False, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
     # NIST Level 3
-    { "beta": 919, "s": 723749, "quantum": False },
+    { "beta": 919, "s": 723749, "quantum": False, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
     # NIST Level 5
-    { "beta": 1314, "s": 769533, "quantum": False },
+    { "beta": 1314, "s": 769533, "quantum": False, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
+]
+
+# Quantum SIS, uses BCSS23 for sieving.
+QUANTUM_SIS_PARAMS_BCSS23 = [
+    # NIST Level 2
+    { "beta": 571, "s": 358953, "quantum": True, "red_cost_model": BCSS23() },
+    # NIST Level 3
+    { "beta": 854, "s": 752706, "quantum": True, "red_cost_model": BCSS23() },
+    # NIST Level 5
+    { "beta": 1212, "s": 804127, "quantum": True, "red_cost_model": BCSS23() },
+]
+
+# Quantum SIS, uses classical sieving.
+QUANTUM_SIS_PARAMS_MATZOV = [
+    # NIST Level 2
+    { "beta": 571, "s": 356153, "quantum": True, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
+    # NIST Level 3
+    { "beta": 823, "s": 765747, "quantum": True, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
+    # NIST Level 5
+    { "beta": 1179, "s": 815672, "quantum": True, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
+]
+
+# Quantum SIS, uses quantum ABFKSW20 for enumeration.
+QUANTUM_SIS_PARAMS_QABFKSW20 = [
+    # NIST Level 2
+    { "beta": 571, "s": 358603, "quantum": True, "red_cost_model": QuantumABFKSW20() },
+    # NIST Level 3
+    { "beta": 809, "s": 771539, "quantum": True, "red_cost_model": QuantumABFKSW20() },
+    # NIST Level 5
+    { "beta": 1138, "s": 829524, "quantum": True, "red_cost_model": QuantumABFKSW20() },
 ]
 
 # Reproduce the estimates from the paper, does not run the optimizer but only
 # the cost function
 def reproduce_paper(paper_params = EUROCRYPTO_PARAMS):
-    red_cost_model = RC.MATZOV.__class__(nn='list_decoding-classical')
     results = []
     for i in range(len(EUROCRYPTO_PARAMS)):
         params = DILITHIUM_SIS_PARAM[i]
         opts = paper_params[i]
         print("{}:".format(params["level"]))
         # Compute cost of running BKZ.
-        bkz_cost = cost_bkz(red_cost_model, opts["beta"], params["m"])
+        bkz_cost = cost_bkz(opts["red_cost_model"], opts["beta"], params["m"])
         res = estimate_sis_cost(
             params["m"],
             params["m"]-params["n"],
@@ -351,7 +511,7 @@ def reproduce_paper(paper_params = EUROCRYPTO_PARAMS):
             params["ell"],
             opts["s"],
             opts["beta"],
-            True,
+            SamplerComplexity.ARCTIC_GSA,
             bkz_cost,
             opts["quantum"]
         )
