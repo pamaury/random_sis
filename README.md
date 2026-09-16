@@ -36,8 +36,11 @@ attach("estimator_sis.py")
 %time results = runall()
 # optional: produce the latex table of the article
 print(results_table_latex(results))
-# Option 2: just reproduce the results of the paper.
+# Option 2: just reproduce the results of the paper
+# - using GSA (instanteanous)
 reproduce_paper()
+# - using CN11 (takes between 15 and 30 minutes)
+results=reproduce_paper(EUROCRYPTO_PARAMS_CN11, SamplerComplexity.MCMC_CN11)
 ```
 
 **Technical details:** the docker image built does not include the code, instead
