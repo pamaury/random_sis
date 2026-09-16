@@ -1,0 +1,37 @@
+To reproduce the results, we strongly suggest to Docker.
+We provide a Dockerfile to build a docker image that contains
+everything you need. Assuming you have docker installed on your machine,
+you can run the following command in the "code/" directory
+to build the docker image:
+
+    docker build -t eurocrypt_2024 .
+
+You can then run the container as follows:
+
+    # Make sure to run from the "code/" directory.
+    docker run -p 8888:8888 -v $(pwd):/home/sage/mnt -it eurocrypt_2024
+
+To reproduce the numerical experiments of the dual attack, run the following
+commands *inside the container*:
+
+    # run sage:
+    sage
+    # then enter the following commands *inside sage*
+    import sys
+    sys.path.append('/home/sage/lattice-estimator')
+    attach("estimator_eurocrypt.py")
+    # run the optimizer (takes about 2 hours)
+    %time results = runall()
+    %time results2 = runall(red_cost_model = QuantumABFKSW20())
+    # optional: produce the latex table of the article
+    print(results_table_latex(results))
+    print(results_table_latex(results2))
+    # or just reproduce the results of the paper.
+    reproduce_paper(EUROCRYPT_PARAMS_FIXED)
+
+Technical details: the docker image built does not include the code, instead
+it expects the code to be available at the mount point /home/sage/mnt inside
+the container. This allows you to edit the code outside of the container
+while running the container. Furthermore, in order to run the jupyter notebook
+from inside the container, you need to forward the port 8888 so that you can
+use it from your browser.
