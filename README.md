@@ -1,10 +1,10 @@
-# Solving SIS in any norm via Gaussian sampling
+# Quantum algorithm for discrete Gaussian sampling
 
 This is the code to compute the estimates in the paper.
 
 ## Reproducing the results
 
-To reproduce the results, we strongly suggest to Docker.
+To reproduce the results, we strongly suggest to use Docker.
 We provide a Dockerfile to build a docker image that contains
 everything you need. Assuming you have docker installed on your machine,
 you can run the following command to build the docker image:
@@ -34,13 +34,15 @@ sys.path.append('/home/sage/lattice-estimator')
 attach("estimator_sis.py")
 # Option 1: run the optimizer.
 %time results = runall()
-# optional: produce the latex table of the article
-print(results_table_latex(results))
+# optional: produce the latex tables of the article
+print(results_table_latex(results, quantum=True))
+print(results_table_latex(results, quantum=True, red_cost_model=BCSS23()))
+print(results_table_latex(results, quantum=True, red_cost_model=QuantumABFKSW20))
 # Option 2: just reproduce the results of the paper
-# - using GSA (instanteanous)
 reproduce_paper()
-# - using CN11 (takes between 15 and 30 minutes)
-results=reproduce_paper(EUROCRYPTO_PARAMS_CN11, SamplerComplexity.MCMC_CN11)
+print(reproduce_paper(QUANTUM_SIS_PARAMS_BCSS23))
+print(reproduce_paper(QUANTUM_SIS_PARAMS_MATZOV))
+print(reproduce_paper(QUANTUM_SIS_PARAMS_QABFKSW20))
 ```
 
 **Technical details:** the docker image built does not include the code, instead
