@@ -41,7 +41,7 @@ print(results_table_latex(results, quantum=True, red_cost_model=QuantumABFKSW20)
 # Option 2: just reproduce the results of the paper
 reproduce_paper()
 print(reproduce_paper(QUANTUM_SIS_PARAMS_BCSS23))
-print(reproduce_paper(QUANTUM_SIS_PARAMS_MATZOV))
+print(reproduce_paper(QUANTUM_SIS_PARAMS_CLASSICAL))
 print(reproduce_paper(QUANTUM_SIS_PARAMS_QABFKSW20))
 ```
 

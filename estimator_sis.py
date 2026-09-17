@@ -527,7 +527,7 @@ QUANTUM_SIS_PARAMS_BCSS23 = [
 ]
 
 # Quantum SIS, uses classical sieving.
-QUANTUM_SIS_PARAMS_MATZOV = [
+QUANTUM_SIS_PARAMS_CLASSICAL = [
     # NIST Level 2
     { "beta": 571, "s": 356153, "quantum": True, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical') },
     # NIST Level 3
