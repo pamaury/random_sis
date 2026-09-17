@@ -23,15 +23,12 @@ commands *inside the container*:
     # run the optimizer (takes about 2 hours)
     %time results = runall()
     %time results2 = runall(red_cost_model = QuantumABFKSW20())
-    %time results3 = runall(red_cost_model = BCSS23())
     # optional: produce the latex table of the article
     print(results_table_latex(results))
     print(results_table_latex(results2))
-    print(results_table_latex(results3))
     # or just reproduce the results of the paper.
     reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_CLASSICAL)
     reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_QABFKSW20)
-    reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_BCSS23)
 
 Technical details: the docker image built does not include the code, instead
 it expects the code to be available at the mount point /home/sage/mnt inside

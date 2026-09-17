@@ -526,16 +526,6 @@ EUROCRYPT_PARAMS_QUANTUM_QABFKSW20 = [
     {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1675, "n_guess": 336, "beta": 967, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
 ]
 
-# Quantum attack, quadratic speed up on DGS, quantum BKZ using quantum sieving
-EUROCRYPT_PARAMS_QUANTUM_BCSS23 = [
-    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": False, "m": 1013, "n_guess": 1, "beta": 656, "s": 0.110, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": False, "m": 1519, "n_guess": 1, "beta": 989, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": False, "m": 2025, "n_guess": 1, "beta": 1392, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": True, "m": 913, "n_guess": 166, "beta": 556, "s": 0.070, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": True, "m": 1319, "n_guess": 246, "beta": 839, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1725, "n_guess": 336, "beta": 1152, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
-]
-
 # Reproduce the estimates from Eurocrypt paper, does not run the optimizer but only
 # the cost function
 def reproduce_paper(params):
