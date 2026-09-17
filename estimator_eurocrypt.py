@@ -107,6 +107,23 @@ class QuantumABFKSW20(ABFKSW20):
     def __call__(self, *args, **kwargs):
         return sqrt(super().__call__(*args, **kwargs))
 
+# [BCSS23](https://eprint.iacr.org/2022/676.pdf)
+class BCSS23(ReductionCost):
+    __name__ = "ChaLoy21"
+    short_vectors = ReductionCost._short_vectors_sieve
+
+    def __call__(self, beta, d, B=None):
+        """
+
+        See [AC:ChaLoy21]_.
+
+        :param beta: Block size ≥ 2.
+        :param d: Lattice dimension.
+        :param B: Bit-size of entries.
+        """
+
+        return ZZ(2) ** RR(0.2563 * beta)
+
 class QuantumMode(Enum):
     CLASSICAL = 1 # Entirely classical.
     # Quantum algorithm from Eurocrypt paper + quadratic speedup on MCMC sampler
@@ -499,14 +516,24 @@ EUROCRYPT_PARAMS_QUANTUM_MATZOV = [
     {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1725, "n_guess": 336, "beta": 1052, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
 ]
 
-# Quantum attack, quadratic speed up on DGS, classical BKZ using Matzov's estimates
+# Quantum attack, quadratic speed up on DGS, quantum BKZ using enumeration estimates
 EUROCRYPT_PARAMS_QUANTUM_QABFKSW20 = [
-    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": False, "m": 1013, "n_guess": 1, "beta": 596, "s": 0.110, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
-    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": False, "m": 1519, "n_guess": 1, "beta": 919, "s": 0.120, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
-    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": False, "m": 2025, "n_guess": 1, "beta": 1302, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
-    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": True, "m": 913, "n_guess": 166, "beta": 476, "s": 0.080, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
-    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": True, "m": 1269, "n_guess": 251, "beta": 744, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
-    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1725, "n_guess": 336, "beta": 1052, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
+    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": False, "m": 1013, "n_guess": 1, "beta": 596, "s": 0.110, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": False, "m": 1519, "n_guess": 1, "beta": 869, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": False, "m": 2025, "n_guess": 1, "beta": 1192, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": True, "m": 913, "n_guess": 166, "beta": 496, "s": 0.070, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": True, "m": 1269, "n_guess": 251, "beta": 714, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1675, "n_guess": 336, "beta": 967, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": QuantumABFKSW20()},
+]
+
+# Quantum attack, quadratic speed up on DGS, quantum BKZ using quantum sieving
+EUROCRYPT_PARAMS_QUANTUM_BCSS23 = [
+    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": False, "m": 1013, "n_guess": 1, "beta": 656, "s": 0.110, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
+    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": False, "m": 1519, "n_guess": 1, "beta": 989, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
+    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": False, "m": 2025, "n_guess": 1, "beta": 1392, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
+    {"name": "Kyber512", "scheme": Kyber512, "mod_switch": True, "m": 913, "n_guess": 166, "beta": 556, "s": 0.070, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
+    {"name": "Kyber768", "scheme": Kyber768, "mod_switch": True, "m": 1319, "n_guess": 246, "beta": 839, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
+    {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": True, "m": 1725, "n_guess": 336, "beta": 1152, "s": 0.100, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": BCSS23()},
 ]
 
 # Reproduce the estimates from Eurocrypt paper, does not run the optimizer but only
@@ -518,7 +545,7 @@ def reproduce_paper(params):
         use_mod_switch = p['mod_switch']
         mod_switch_name = "{} modulus switching".format("with" if use_mod_switch else "no")
         params = Parameters(
-            Sampler.MCMC_SQRT_HALF,
+            Sampler.MCMC_ARCTIC,
             ModulusSwitching.EstimateOn if use_mod_switch else ModulusSwitching.Off,
             p['quantum'],
             p['red_cost_model'],
