@@ -506,8 +506,8 @@ def runall(use_new_opt = True, quantum_mode = QuantumMode.FULL_QUANTUM, red_cost
 def runall_quantum():
     return runall(quantum_mode = QuantumMode.FULL_QUANTUM, red_cost_model = RC.MATZOV.__class__(nn='list_decoding-classical'))
 
-# Quantum attack, quadratic speed up on DGS, classical BKZ using Matzov's estimates
-EUROCRYPT_PARAMS_QUANTUM_MATZOV = [
+# Quantum attack, quadratic speed up on DGS, classical BKZ using list decoding.
+EUROCRYPT_PARAMS_QUANTUM_CLASSICAL = [
     {"name": "Kyber512", "scheme": Kyber512, "mod_switch": False, "m": 1013, "n_guess": 1, "beta": 596, "s": 0.110, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
     {"name": "Kyber768", "scheme": Kyber768, "mod_switch": False, "m": 1519, "n_guess": 1, "beta": 919, "s": 0.120, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},
     {"name": "Kyber1024", "scheme": Kyber1024, "mod_switch": False, "m": 2025, "n_guess": 1, "beta": 1302, "s": 0.130, "quantum": QuantumMode.FULL_QUANTUM, "red_cost_model": RC.MATZOV.__class__(nn='list_decoding-classical')},

@@ -29,7 +29,7 @@ commands *inside the container*:
     print(results_table_latex(results2))
     print(results_table_latex(results3))
     # or just reproduce the results of the paper.
-    reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_MATZOV)
+    reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_CLASSICAL)
     reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_QABFKSW20)
     reproduce_paper(EUROCRYPT_PARAMS_QUANTUM_BCSS23)
 
