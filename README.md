@@ -41,6 +41,8 @@ print(results_table_latex(results))
 reproduce_paper()
 # - using CN11 (takes between 15 and 30 minutes)
 results=reproduce_paper(EUROCRYPTO_PARAMS_CN11, SamplerComplexity.MCMC_CN11)
+# - using BSW18 with CN11 parameter set (takes more than 30 minutes)
+results=reproduce_paper(EUROCRYPTO_PARAMS_CN11, SamplerComplexity.MCMC_BSW18)
 ```
 
 **Technical details:** the docker image built does not include the code, instead
